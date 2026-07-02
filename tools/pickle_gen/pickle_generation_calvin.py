@@ -22,7 +22,7 @@ gripper_vq_dir = f"{dataset_path}/{DATASET_NAME}_gripper_codes"
 
 # Output paths
 output_path = f"{dataset_path}/meta"
-normalizer_path = f"{PROJECT_ROOT}/OmniSim/configs/normalizer_calvin"
+normalizer_path = f"{PROJECT_ROOT}/UniVLA/configs/normalizer_calvin"
 output_pkl_file = osp.join(output_path, f"{DATASET_NAME}_norm.pkl")
 
 # Settings

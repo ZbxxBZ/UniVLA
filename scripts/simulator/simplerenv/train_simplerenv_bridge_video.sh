@@ -2,11 +2,15 @@ WORLD_SIZE=${WORLD_SIZE:-1}
 RANK=${RANK:-0}
 MASTER_ADDR=${MASTER_ADDR:-127.0.0.1}
 MASTER_PORT=${MASTER_PORT:-23456}
-NGPUS=8
+NGPUS=${NGPUS:-8}
 
-DATAPATH='/share/project/yuqi.wang/datasets/processed_data/meta/simplerenv_bridge_trainval.pkl'
-ACTION_TOKENIZER_PATH="/share/project/yuqi.wang/UniVLA/pretrain/fast_bridge_t5_s50"
-EXP_NAME="UNIVLA_SIMPLERENV_BRIDGE_VIDEO_BS128_20k"
+PROJECT_ROOT=${PROJECT_ROOT:-$(pwd)}
+DATA_ROOT=${DATA_ROOT:-${PROJECT_ROOT}/datasets}
+DATAPATH=${DATAPATH:-${DATA_ROOT}/processed_data/meta/simplerenv_bridge_trainval.pkl}
+ACTION_TOKENIZER_PATH=${ACTION_TOKENIZER_PATH:-${PROJECT_ROOT}/pretrain/fast_bridge_t5_s50}
+PRETRAIN=${PRETRAIN:-${PROJECT_ROOT}/logs/ckpts/WORLD_MODEL_POSTTRAIN}
+MODEL_CONFIG=${MODEL_CONFIG:-${PROJECT_ROOT}/configs/moe_fast_video.json}
+EXP_NAME=${EXP_NAME:-UNIVLA_SIMPLERENV_BRIDGE_VIDEO_BS128_20k}
 
 export PYTHONPATH=$(pwd)
 
@@ -15,8 +19,8 @@ torchrun \
     --nnodes=1 \
     --node_rank=${RANK} \
     train/train_moe.py \
-    --model_name_or_path /share/project/yuqi.wang/UniVLA/logs/ckpts/WORLD_MODEL_POSTTRAIN \
-    --model_config_path /share/project/yuqi.wang/UniVLA/configs/moe_fast_video.json \
+    --model_name_or_path ${PRETRAIN} \
+    --model_config_path ${MODEL_CONFIG} \
     --deepspeed scripts/sft/zero3_offload.json \
     --output_dir "logs/"${EXP_NAME} \
     --learning_rate 8e-5 \

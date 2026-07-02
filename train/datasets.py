@@ -10,7 +10,9 @@ from typing import List, Union
 from torch.utils.data import Dataset
 from PIL import Image
 import sys
-sys.path.append("/share/project/yuqi.wang/UniVLA")
+import pathlib
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.append(str(PROJECT_ROOT))
 from models.tokenizer.action_tokenizer import ActionTokenizer
 from transformers import AutoModel, AutoImageProcessor, GenerationConfig, AutoProcessor
     
@@ -63,7 +65,7 @@ class Emu3SFTDataset(Dataset):
         self.video_format = args.video_format
 
         if self.raw_image:
-            self.vision_hub = "/share/project/yuqi.wang/UniVLA/pretrain/Emu3-VisionVQ"
+            self.vision_hub = osp.expanduser(os.environ.get("UNIVLA_VISION_HUB", str(PROJECT_ROOT / "pretrain" / "Emu3-VisionVQ")))
             self.image_processor = AutoImageProcessor.from_pretrained(self.vision_hub, trust_remote_code=True)
             self.image_tokenizer = AutoModel.from_pretrained(self.vision_hub, trust_remote_code=True)
             self.image_processor.min_pixels = 80 * 80
@@ -930,4 +932,3 @@ class Emu3CoTDataset(Emu3SFTDataset):
             if "labels" in sample:
                 sample["labels"] = self.pad_tensor(sample["labels"], self.tokenizer.model_max_length, self.args.ignore_index)
         return sample
-    

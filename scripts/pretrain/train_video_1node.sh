@@ -2,11 +2,14 @@ WORLD_SIZE=${WORLD_SIZE:-1}
 RANK=${RANK:-0}
 MASTER_ADDR=${MASTER_ADDR:-127.0.0.1}
 MASTER_PORT=${MASTER_PORT:-23456}
-NGPUS=8
+NGPUS=${NGPUS:-8}
 
-DATAPATH='/share/project/yuqi.wang/datasets/post_train_data/meta/world_model_post_train_v3.pkl'
-ACTION_TOKENIZER_PATH="/share/project/yuqi.wang/UniVLA/pretrain/fast"
-EXP_NAME="WORLD_MODEL_PRETRAIN_DEBUG"
+PROJECT_ROOT=${PROJECT_ROOT:-$(pwd)}
+DATA_ROOT=${DATA_ROOT:-${PROJECT_ROOT}/datasets}
+DATAPATH=${DATAPATH:-${DATA_ROOT}/post_train_data/meta/world_model_post_train_v3.pkl}
+PRETRAIN=${PRETRAIN:-${PROJECT_ROOT}/pretrain/Emu3-Base}
+MODEL_CONFIG=${MODEL_CONFIG:-${PROJECT_ROOT}/configs/moe_fast_video_pretrain.json}
+EXP_NAME=${EXP_NAME:-WORLD_MODEL_PRETRAIN_DEBUG}
 
 export PYTHONPATH=$(pwd)
 
@@ -15,8 +18,8 @@ torchrun \
     --nnodes=${WORLD_SIZE} \
     --node_rank=${RANK} \
     train/train_moe.py \
-    --model_name_or_path /share/project/yuqi.wang/UniVLA/pretrain/Emu3-Base \
-    --model_config_path /share/project/yuqi.wang/UniVLA/configs/moe_fast_video_pretrain.json \
+    --model_name_or_path ${PRETRAIN} \
+    --model_config_path ${MODEL_CONFIG} \
     --deepspeed scripts/sft/zero3_offload.json \
     --output_dir "logs/"${EXP_NAME} \
     --learning_rate 8e-5 \
