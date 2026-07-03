@@ -140,20 +140,26 @@ def configure_trainable_parameters(model, trainable_parameters):
         return
 
     matched = []
+    trainable = 0
+    total = 0
     for name, param in model.named_parameters():
+        numel = getattr(param, "ds_numel", None)
+        if numel is None:
+            numel = param.numel()
+        total += numel
         is_trainable = any(pattern in name for pattern in patterns)
         param.requires_grad = is_trainable
         if is_trainable:
-            matched.append((name, param.numel()))
+            trainable += numel
+            matched.append((name, numel))
 
     if not matched:
         raise ValueError(f"No parameters matched trainable_parameters={patterns}")
 
-    trainable = sum(numel for _, numel in matched)
-    total = sum(param.numel() for param in model.parameters())
+    ratio = trainable / total if total else 0.0
     print(
         f"Trainable parameter filter enabled: patterns={patterns}, "
-        f"trainable={trainable:,}/{total:,} ({trainable / total:.6%})"
+        f"trainable={trainable:,}/{total:,} ({ratio:.6%})"
     )
     print("Matched trainable parameter names:")
     for name, numel in matched[:50]:
