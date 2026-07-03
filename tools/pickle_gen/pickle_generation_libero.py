@@ -5,10 +5,11 @@ from tqdm import tqdm
 import numpy as np
 import sys
 import argparse
+import pathlib
 
 # Project-specific paths
-PROJECT_ROOT = "/share/project/yuqi.wang"
-sys.path.append(f"{PROJECT_ROOT}/UniVLA")
+PROJECT_ROOT = os.environ.get("PROJECT_ROOT", str(pathlib.Path(__file__).resolve().parents[2]))
+sys.path.append(PROJECT_ROOT)
 
 # Import normalization utility
 from train.dataset.normalize_pi0 import RunningStats, save

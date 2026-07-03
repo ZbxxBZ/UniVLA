@@ -6,17 +6,20 @@ import random
 import sys
 
 # Add project path
-sys.path.append("/share/project/yuqi.wang/UniVLA")
+PROJECT_ROOT = os.environ.get("PROJECT_ROOT", osp.abspath(osp.join(osp.dirname(__file__), "..", "..")))
+sys.path.append(PROJECT_ROOT)
 
 # ========== Settings ==========
-debug = False  # Set to True for debugging (only processes 10 samples per dataset)
-max_videos = 100000  # Maximum number of videos to use per dataset (set None to disable)
-minimum_frames = 6
+debug = os.environ.get("DEBUG", "False").lower() in ("1", "true", "yes")  # Set to True for debugging.
+max_videos_env = os.environ.get("MAX_VIDEOS", "100000")
+max_videos = None if max_videos_env.lower() in ("none", "null", "") else int(max_videos_env)
+minimum_frames = int(os.environ.get("MINIMUM_FRAMES", "6"))
 
 # Paths
-dataset_path = "/share/project/yuqi.wang/datasets/processed_data"
-vq_dataset_path = "/share/project/yuqi.wang/datasets/post_train_data"
-output_path = "/share/project/yuqi.wang/datasets/post_train_data/meta"
+DATA_ROOT = os.environ.get("DATA_ROOT", osp.join(PROJECT_ROOT, "datasets"))
+dataset_path = os.environ.get("DATASET_PATH", osp.join(DATA_ROOT, "processed_data"))
+vq_dataset_path = os.environ.get("VQ_DATASET_PATH", osp.join(DATA_ROOT, "post_train_data"))
+output_path = os.environ.get("OUTPUT_PATH", osp.join(DATA_ROOT, "post_train_data", "meta"))
 os.makedirs(output_path, exist_ok=True)
 
 # Dataset to VQ map
@@ -40,9 +43,9 @@ DATASETS_VQMAP = {
 }
 
 # Additional simulator datasets
-calvin_pickle_path = "/share/project/yuqi.wang/datasets/processed_data/meta/calvin_gripper.pkl"
-libero_pickle_path = "/share/project/yuqi.wang/datasets/processed_data/meta/libero_all_norm_aug.pkl"
-ssv2_pickle_path = "/share/project/yuqi.wang/datasets/post_train_data/meta/SSv2.pickle"
+calvin_pickle_path = os.environ.get("CALVIN_PICKLE_PATH", osp.join(DATA_ROOT, "processed_data", "meta", "calvin_gripper.pkl"))
+libero_pickle_path = os.environ.get("LIBERO_PICKLE_PATH", osp.join(DATA_ROOT, "processed_data", "meta", "libero_all_norm_aug.pkl"))
+ssv2_pickle_path = os.environ.get("SSV2_PICKLE_PATH", osp.join(DATA_ROOT, "post_train_data", "meta", "SSv2.pickle"))
 
 ALL_DATASETS = list(DATASETS_VQMAP.keys())
 all_samples = []
@@ -165,7 +168,7 @@ for name, count in dataset_stats.items():
 print(f"\nTotal number of valid scenes after merging: {total}")
 
 # Save to file
-output_file = osp.join(output_path, "world_model_post_train_v3.pkl")
+output_file = osp.join(output_path, os.environ.get("OUTPUT_FILENAME", "world_model_post_train_v3.pkl"))
 with open(output_file, "wb") as f:
     pickle.dump(all_samples, f)
 print(f"\nSaved processed dataset to: {output_file}")

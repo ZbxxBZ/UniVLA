@@ -12,6 +12,21 @@ import argparse
 from PIL import Image, ImageEnhance
 import random
 
+AUTHOR_PROJECT_ROOT = "/share/project/yuqi.wang/UniVLA"
+AUTHOR_DATA_ROOT = "/share/project/yuqi.wang/datasets"
+
+def portable_path(path, project_root, data_root):
+    if not isinstance(path, str):
+        return path
+    normalized = path.replace("\\", "/")
+    if normalized.startswith(AUTHOR_DATA_ROOT):
+        rel = normalized[len(AUTHOR_DATA_ROOT):].lstrip("/")
+        return osp.join(data_root, *rel.split("/"))
+    if normalized.startswith(AUTHOR_PROJECT_ROOT):
+        rel = normalized[len(AUTHOR_PROJECT_ROOT):].lstrip("/")
+        return osp.join(project_root, *rel.split("/"))
+    return path
+
 def random_shift(images, max_shift=0.1):
     """
     对一个图像列表进行随机平移
@@ -332,7 +347,7 @@ data_config = {
     },
 }
 
-def get_data_config(process_data):
+def get_data_config(process_data, project_root, data_root):
     cfg = data_config[process_data]
 
     interval = cfg['interval']
@@ -368,18 +383,38 @@ def get_data_config(process_data):
         'min_pixels': min_pixels,
         'SIZE': size,
         'hz': hz,
-        'VIDEO_ROOT': video_root,
-        'VIDEO_CODES_SAVE': video_codes_save,
-        'VIDEO_RECON_SAVE': video_recon_save
+        'VIDEO_ROOT': portable_path(video_root, project_root, data_root),
+        'VIDEO_CODES_SAVE': portable_path(video_codes_save, project_root, data_root),
+        'VIDEO_RECON_SAVE': portable_path(video_recon_save, project_root, data_root)
     }
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("rank", nargs="?", type=int, default=int(os.environ.get("RANK", 0)))
+    parser.add_argument("--world-size", type=int, default=int(os.environ.get("WORLD_SIZE", os.environ.get("NGPUS", 8))))
+    parser.add_argument("--process-data", default=os.environ.get("PROCESS_DATA", "Calvin"))
+    parser.add_argument("--project-root", default=os.environ.get("PROJECT_ROOT", os.getcwd()))
+    parser.add_argument("--data-root", default=os.environ.get("DATA_ROOT"))
+    parser.add_argument("--model-hub", default=os.environ.get("VISION_TOKENIZER_HUB", "BAAI/Emu3-VisionTokenizer"))
+    parser.add_argument("--model-path", default=os.environ.get("VISION_VQ_PATH"))
+    parser.add_argument("--video-root", default=os.environ.get("VIDEO_ROOT"))
+    parser.add_argument("--video-codes-save", default=os.environ.get("VIDEO_CODES_SAVE"))
+    parser.add_argument("--video-recon-save", default=os.environ.get("VIDEO_RECON_SAVE"))
+    parser.add_argument("--input-subdir", default=os.environ.get("INPUT_SUBDIR"))
+    args = parser.parse_args()
+
+    if args.data_root is None:
+        args.data_root = osp.join(args.project_root, "datasets")
+    if args.model_path is None:
+        args.model_path = osp.join(args.project_root, "pretrain", "Emu3-VisionVQ")
+    return args
 
 if __name__ == "__main__":
 
-    MODEL_HUB = "BAAI/Emu3-VisionTokenizer"
-    path = "/share/project/yuqi.wang/UniVLA/pretrain/Emu3-VisionVQ"
+    args = parse_args()
 
     # choose the dataset to process
-    process_data = 'Calvin'
+    process_data = args.process_data
 
     # current supported datasets
     simulator_list = ["Calvin", "Calvin_partial", "libero", 'libero_long', 'maniskill']
@@ -390,11 +425,11 @@ if __name__ == "__main__":
 
     assert process_data in simulator_list + oxe_list + video_list + aloha_list, f"Invalid process_data: {process_data}"
 
-    model = AutoModel.from_pretrained(path, trust_remote_code=True).eval().cuda()
-    processor = AutoImageProcessor.from_pretrained(MODEL_HUB, trust_remote_code=True)
+    model = AutoModel.from_pretrained(args.model_path, trust_remote_code=True).eval().cuda()
+    processor = AutoImageProcessor.from_pretrained(args.model_hub, trust_remote_code=True)
     
     # Retrieve configuration for the selected dataset
-    config = get_data_config(process_data)
+    config = get_data_config(process_data, args.project_root, args.data_root)
 
     # Assign configuration values to variables used in your pipeline
     processor.min_pixels = config['min_pixels']  # Minimum valid pixel count
@@ -403,18 +438,14 @@ if __name__ == "__main__":
     hz = config['hz']                            # Final video frequency (Hz)
 
     # Paths for loading raw video, saving codes, and reconstructed videos
-    VIDEO_ROOT = config['VIDEO_ROOT']
-    VIDEO_CODES_SAVE = config['VIDEO_CODES_SAVE']
-    VIDEO_RECON_SAVE = config['VIDEO_RECON_SAVE']
+    VIDEO_ROOT = args.video_root or config['VIDEO_ROOT']
+    VIDEO_CODES_SAVE = args.video_codes_save or config['VIDEO_CODES_SAVE']
+    VIDEO_RECON_SAVE = args.video_recon_save or config['VIDEO_RECON_SAVE']
 
     os.makedirs(VIDEO_CODES_SAVE, exist_ok=True)
     os.makedirs(VIDEO_RECON_SAVE, exist_ok=True)
 
-    try:
-        rank = int(sys.argv[1])
-    except Exception as e:
-        print(f"Error parsing rank: {e}")
-    videos = sorted(os.listdir(VIDEO_ROOT))[rank::8]
+    videos = sorted(os.listdir(VIDEO_ROOT))[args.rank::args.world_size]
     # videos = sorted(os.listdir(VIDEO_ROOT))[rank::4]
 
     single_view_datasets = ['RT1', 'BridgeV2', 'Ego5m', 'maniskill', 'fmb', 'toto',\
@@ -431,16 +462,19 @@ if __name__ == "__main__":
             images, image_paths = load_images(osp.join(VIDEO_ROOT, video), SIZE, interval)
         elif process_data == 'Calvin':
             # images, image_paths = load_images(osp.join(VIDEO_ROOT, video,'rgb_static'), SIZE, interval, augmentation=random_shift)
-            images, image_paths = load_images(osp.join(VIDEO_ROOT, video,'rgb_gripper'), SIZE, interval, augmentation=random_shift)
+            image_subdir = args.input_subdir or 'rgb_gripper'
+            images, image_paths = load_images(osp.join(VIDEO_ROOT, video, image_subdir), SIZE, interval, augmentation=random_shift)
             # images, image_paths = load_images(osp.join(VIDEO_ROOT, video,'rgb_gripper'), SIZE, interval, augmentation=random_brightness_enhance)
         elif process_data == 'Calvin_raw':
             images, image_paths = load_images(osp.join(VIDEO_ROOT, video), SIZE, interval)
         elif process_data == 'libero':
             # remember to process the images and gripper images
             # images, image_paths = load_images(osp.join(VIDEO_ROOT, video, 'images'), SIZE, interval)
-            images, image_paths = load_images(osp.join(VIDEO_ROOT, video,'gripper_images'), SIZE, interval)
+            image_subdir = args.input_subdir or 'gripper_images'
+            images, image_paths = load_images(osp.join(VIDEO_ROOT, video, image_subdir), SIZE, interval)
         elif process_data == 'Calvin_partial':
-            images, image_paths = load_images(osp.join(VIDEO_ROOT, video,'rgb_static'), SIZE, interval)
+            image_subdir = args.input_subdir or 'rgb_static'
+            images, image_paths = load_images(osp.join(VIDEO_ROOT, video, image_subdir), SIZE, interval)
             # images, image_paths = load_images(osp.join(VIDEO_ROOT, video,'rgb_gripper'), SIZE, interval)
         elif process_data == 'taco_play':
             views = ['images', 'grippers']

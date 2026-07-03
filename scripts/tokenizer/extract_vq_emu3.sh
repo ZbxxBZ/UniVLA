@@ -1,9 +1,24 @@
-CUDA_VISIBLE_DEVICES=0 python3 models/tokenizer/emu3_tokenizer.py 0 & 
-CUDA_VISIBLE_DEVICES=1 python3 models/tokenizer/emu3_tokenizer.py 1 & 
-CUDA_VISIBLE_DEVICES=2 python3 models/tokenizer/emu3_tokenizer.py 2 & 
-CUDA_VISIBLE_DEVICES=3 python3 models/tokenizer/emu3_tokenizer.py 3 & 
-CUDA_VISIBLE_DEVICES=4 python3 models/tokenizer/emu3_tokenizer.py 4 & 
-CUDA_VISIBLE_DEVICES=5 python3 models/tokenizer/emu3_tokenizer.py 5 & 
-CUDA_VISIBLE_DEVICES=6 python3 models/tokenizer/emu3_tokenizer.py 6 & 
-CUDA_VISIBLE_DEVICES=7 python3 models/tokenizer/emu3_tokenizer.py 7
+NGPUS=${NGPUS:-8}
+PYTHON=${PYTHON:-python3}
+TOKENIZER_SCRIPT=${TOKENIZER_SCRIPT:-models/tokenizer/emu3_tokenizer.py}
+PROCESS_DATA=${PROCESS_DATA:-Calvin}
 
+if [ -n "${CUDA_DEVICES:-}" ]; then
+    IFS=',' read -ra DEVICES <<< "${CUDA_DEVICES}"
+    NGPUS=${#DEVICES[@]}
+else
+    DEVICES=()
+    for ((rank = 0; rank < NGPUS; rank++)); do
+        DEVICES+=("${rank}")
+    done
+fi
+
+for ((rank = 0; rank < NGPUS; rank++)); do
+    CUDA_VISIBLE_DEVICES=${DEVICES[$rank]} \
+        ${PYTHON} "${TOKENIZER_SCRIPT}" "${rank}" \
+            --world-size "${NGPUS}" \
+            --process-data "${PROCESS_DATA}" \
+            "$@" &
+done
+
+wait

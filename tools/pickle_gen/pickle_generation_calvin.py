@@ -4,31 +4,46 @@ import pickle
 from tqdm import tqdm
 import numpy as np
 import sys
+import argparse
+import pathlib
 # ====================== Config ======================
 
 # Project-specific paths
-PROJECT_ROOT = "/share/project/yuqi.wang"
-sys.path.append(f"{PROJECT_ROOT}/UniVLA")
+PROJECT_ROOT = os.environ.get("PROJECT_ROOT", str(pathlib.Path(__file__).resolve().parents[2]))
+sys.path.append(PROJECT_ROOT)
 
 # Import normalization utility
 from train.dataset.normalize_pi0 import RunningStats, save
 
+parser = argparse.ArgumentParser(description="Generate a normalized CALVIN policy pickle.")
+parser.add_argument("--dataset_name", type=str, default=os.environ.get("DATASET_NAME", "calvin"), help="Dataset directory name under processed_data.")
+parser.add_argument("--dataset_path", type=str, default=os.environ.get("DATASET_PATH"), help="Root processed_data path.")
+parser.add_argument("--vq_dir", type=str, default=os.environ.get("VQ_DIR"), help="Static-camera VQ token directory.")
+parser.add_argument("--gripper_vq_dir", type=str, default=os.environ.get("GRIPPER_VQ_DIR"), help="Gripper-camera VQ token directory.")
+parser.add_argument("--output_path", type=str, default=os.environ.get("OUTPUT_PATH"), help="Directory to save the pickle.")
+parser.add_argument("--normalizer_path", type=str, default=os.environ.get("NORMALIZER_PATH"), help="Directory to save normalization stats.")
+parser.add_argument("--output_filename", type=str, default=os.environ.get("OUTPUT_FILENAME"), help="Output pickle filename.")
+parser.add_argument("--min_frame_count", type=int, default=int(os.environ.get("MIN_FRAME_COUNT", "8")))
+parser.add_argument("--use_raw_images", action="store_true", default=os.environ.get("USE_RAW_IMAGES", "False").lower() in ("1", "true", "yes"))
+args = parser.parse_args()
+
 # Input paths
-DATASET_NAME = "calvin"  # Options: calvin, calvin_d, calvin_abc
-dataset_path = f"{PROJECT_ROOT}/datasets/processed_data"
-language_dir = f"{dataset_path}/{DATASET_NAME}"
-vq_dir = f"{dataset_path}/{DATASET_NAME}_codes"
-gripper_vq_dir = f"{dataset_path}/{DATASET_NAME}_gripper_codes"
+DATASET_NAME = args.dataset_name  # Options: calvin, calvin_d, calvin_abc
+DATA_ROOT = os.environ.get("DATA_ROOT", osp.join(PROJECT_ROOT, "datasets"))
+dataset_path = args.dataset_path or osp.join(DATA_ROOT, "processed_data")
+language_dir = osp.join(dataset_path, DATASET_NAME)
+vq_dir = args.vq_dir or osp.join(dataset_path, f"{DATASET_NAME}_codes")
+gripper_vq_dir = args.gripper_vq_dir or osp.join(dataset_path, f"{DATASET_NAME}_gripper_codes")
 
 # Output paths
-output_path = f"{dataset_path}/meta"
-normalizer_path = f"{PROJECT_ROOT}/UniVLA/configs/normalizer_calvin"
-output_pkl_file = osp.join(output_path, f"{DATASET_NAME}_norm.pkl")
+output_path = args.output_path or osp.join(dataset_path, "meta")
+normalizer_path = args.normalizer_path or osp.join(PROJECT_ROOT, "configs", "normalizer_calvin")
+output_pkl_file = osp.join(output_path, args.output_filename or f"{DATASET_NAME}_norm.pkl")
 
 # Settings
 interval = 1           # Not currently used but may be useful
-min_frame_count = 8    # Minimum frame count per scene
-use_raw_images = False # If True, use raw RGB images instead of VQ codes
+min_frame_count = args.min_frame_count    # Minimum frame count per scene
+use_raw_images = args.use_raw_images # If True, use raw RGB images instead of VQ codes
 
 # ====================================================
 
