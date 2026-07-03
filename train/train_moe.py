@@ -78,6 +78,7 @@ class TrainingArguments(tf.TrainingArguments):
     max_position_embeddings: Optional[int] = field(default=None)
     from_scratch: bool = field(default=False)
     dataloader_num_workers: Optional[int] = field(default=0)
+    trainable_parameters: Optional[str] = field(default=None)
 
 def load_model(model_args, model_config, training_args):
     """
@@ -130,6 +131,36 @@ def update_configs(model_config, args, fields):
     for f in fields:
         cross_update(model_config, args, f)
 
+def configure_trainable_parameters(model, trainable_parameters):
+    if not trainable_parameters:
+        return
+
+    patterns = [pattern.strip() for pattern in trainable_parameters.split(",") if pattern.strip()]
+    if not patterns:
+        return
+
+    matched = []
+    for name, param in model.named_parameters():
+        is_trainable = any(pattern in name for pattern in patterns)
+        param.requires_grad = is_trainable
+        if is_trainable:
+            matched.append((name, param.numel()))
+
+    if not matched:
+        raise ValueError(f"No parameters matched trainable_parameters={patterns}")
+
+    trainable = sum(numel for _, numel in matched)
+    total = sum(param.numel() for param in model.parameters())
+    print(
+        f"Trainable parameter filter enabled: patterns={patterns}, "
+        f"trainable={trainable:,}/{total:,} ({trainable / total:.6%})"
+    )
+    print("Matched trainable parameter names:")
+    for name, numel in matched[:50]:
+        print(f"  {name}: {numel:,}")
+    if len(matched) > 50:
+        print(f"  ... {len(matched) - 50} more")
+
 def train():
     """
     Main function to train the model.
@@ -155,6 +186,7 @@ def train():
 
     # Initialize model
     model = load_model(model_args, model_config, training_args)
+    configure_trainable_parameters(model, training_args.trainable_parameters)
 
     # Initialize dataset
     train_dataset = get_dataset(data_args, tokenizer)
